@@ -76,8 +76,7 @@ Expedio/
 │           └── CreateTripSheet.swift
 └── Resources/
     └── Fonts/
-        ├── PlayfairDisplay-Regular.ttf
-        └── PlayfairDisplay-Bold.ttf
+        └── PlayfairDisplay-VariableFont_wght.ttf
 ```
 
 ---
@@ -143,9 +142,9 @@ struct NominatimPlace: Codable, Identifiable, Hashable {
 | accent | #E8B4B8 | Highlights (dusty rose) |
 
 ### Typography
-- **Playfair Display Regular** - Body text, captions
-- **Playfair Display Bold** - Headlines, titles
-- System font fallback for accessibility
+- **Playfair Display** (variable font) - Headlines, titles, and navigation headers (serif)
+- **SF Pro** (system font) - Body text, captions, and content (sans-serif)
+- Clear hierarchy with serif for emphasis, sans-serif for readability
 
 ### Spacing Scale
 - xs: 4pt, sm: 8pt, md: 16pt, lg: 24pt, xl: 32pt
@@ -293,5 +292,4 @@ These areas are ideal for introducing subtle bugs in PRs for candidates to find:
 - `Expedio/Features/Trips/TripDetailViewModel.swift`
 
 **Resources**
-- `Expedio/Resources/Fonts/PlayfairDisplay-Regular.ttf`
-- `Expedio/Resources/Fonts/PlayfairDisplay-Bold.ttf`
+- `Expedio/Resources/Fonts/PlayfairDisplay-VariableFont_wght.ttf`

@@ -1,20 +1,24 @@
 //
-//  expedioApp.swift
-//  expedio
+//  ExpedioApp.swift
+//  Expedio
 //
-//  Created by Abrar Rashid on 21/01/2026.
+//  Main app entry point with SwiftData container
 //
 
 import SwiftUI
 import SwiftData
 
 @main
-struct expedioApp: App {
+struct ExpedioApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            Trip.self,
+            SavedPlace.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])

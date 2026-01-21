@@ -66,16 +66,19 @@ enum Theme {
 
     // MARK: - Typography
     enum Typography {
-        static let largeTitle = Font.custom("PlayfairDisplay-Bold", size: 34)
-        static let title = Font.custom("PlayfairDisplay-Bold", size: 28)
-        static let title2 = Font.custom("PlayfairDisplay-Bold", size: 22)
-        static let title3 = Font.custom("PlayfairDisplay-Bold", size: 20)
-        static let headline = Font.custom("PlayfairDisplay-Bold", size: 17)
-        static let body = Font.custom("PlayfairDisplay-Regular", size: 17)
-        static let callout = Font.custom("PlayfairDisplay-Regular", size: 16)
-        static let subheadline = Font.custom("PlayfairDisplay-Regular", size: 15)
-        static let footnote = Font.custom("PlayfairDisplay-Regular", size: 13)
-        static let caption = Font.custom("PlayfairDisplay-Regular", size: 12)
+        // Headers and Titles - Playfair Display (serif)
+        static let largeTitle = Font.custom("PlayfairDisplay", size: 34).weight(.bold)
+        static let title = Font.custom("PlayfairDisplay", size: 28).weight(.bold)
+        static let title2 = Font.custom("PlayfairDisplay", size: 22).weight(.bold)
+        static let title3 = Font.custom("PlayfairDisplay", size: 20).weight(.bold)
+        static let headline = Font.custom("PlayfairDisplay", size: 17).weight(.semibold)
+
+        // Body Text - SF Pro (system font)
+        static let body = Font.system(size: 17)
+        static let callout = Font.system(size: 16)
+        static let subheadline = Font.system(size: 15)
+        static let footnote = Font.system(size: 13)
+        static let caption = Font.system(size: 12)
     }
 
     // MARK: - Spacing
@@ -225,14 +228,14 @@ final class ThemeTests: XCTestCase {
 
 ### Phase 1 Checklist
 - [ ] Create Xcode project with iOS 17+ deployment target
-- [ ] Add PlayfairDisplay-Regular.ttf and PlayfairDisplay-Bold.ttf to Resources/Fonts
-- [ ] Configure Info.plist with `UIAppFonts` array
-- [ ] Implement Theme.swift with colors, typography, and spacing
+- [ ] Add PlayfairDisplay variable font files (.ttf) to Resources/Fonts
+- [ ] Configure Info.plist with `UIAppFonts` array (add font file names)
+- [ ] Implement Theme.swift with colors, typography (Playfair Display for headers, SF Pro for body), and spacing
 - [ ] Implement Color hex initializer extension
 - [ ] Implement View+Extensions.swift with cardStyle and primaryButtonStyle
 - [ ] Set up SwiftData container in ExpedioApp.swift
 - [ ] Write and run ThemeTests
-- [ ] Verify fonts load correctly in preview
+- [ ] Verify fonts load correctly in preview (Playfair Display for titles, SF Pro for body text)
 
 ---
 

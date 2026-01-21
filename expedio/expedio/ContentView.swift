@@ -1,55 +1,46 @@
 //
 //  ContentView.swift
-//  expedio
+//  Expedio
 //
-//  Created by Abrar Rashid on 21/01/2026.
+//  Placeholder view for Phase 1 testing
+//  Will be replaced with TabView in Phase 6
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }
-    }
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
+            VStack(spacing: Theme.Spacing.lg) {
+                Text("Expedio")
+                    .font(Theme.Typography.largeTitle)
+                    .foregroundColor(Theme.Colors.textPrimary)
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+                Text("Travel Itinerary App")
+                    .font(Theme.Typography.subheadline)
+                    .foregroundColor(Theme.Colors.textSecondary)
+
+                // Demo of card style
+                VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                    Text("Phase 1: Design System")
+                        .font(Theme.Typography.headline)
+                        .foregroundColor(Theme.Colors.textPrimary)
+
+                    Text("Theme, colors, and typography configured")
+                        .font(Theme.Typography.body)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+                .padding(Theme.Spacing.md)
+                .cardStyle()
+                .padding(.horizontal, Theme.Spacing.md)
+
+                // Demo of button style
+                Button("Get Started") {
+                    // No action yet
+                }
+                .primaryButtonStyle()
             }
         }
     }
@@ -57,5 +48,4 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
