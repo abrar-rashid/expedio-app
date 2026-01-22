@@ -10,8 +10,15 @@ import XCTest
 
 final class SearchViewModelTests: XCTestCase {
 
+    override func tearDown() {
+        super.tearDown()
+        // Allow observation cleanup
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.01))
+    }
+
     // MARK: - Mock Service
 
+    @MainActor
     class MockNominatimService: NominatimServiceProtocol {
         var searchResult: Result<[NominatimPlace], Error> = .success([])
         var searchCallCount = 0
@@ -29,6 +36,7 @@ final class SearchViewModelTests: XCTestCase {
 
     // MARK: - Tests
 
+    @MainActor
     func testInitialState_isEmpty() {
         let viewModel = SearchViewModel(service: MockNominatimService())
 
@@ -38,6 +46,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.searchText, "")
     }
 
+    @MainActor
     func testSearchText_emptyString_clearsPlaces() async throws {
         let mockService = MockNominatimService()
         let viewModel = SearchViewModel(service: mockService)
@@ -49,6 +58,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mockService.searchCallCount, 0)
     }
 
+    @MainActor
     func testSearchText_whitespaceOnly_doesNotSearch() async throws {
         let mockService = MockNominatimService()
         let viewModel = SearchViewModel(service: mockService)
@@ -59,6 +69,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mockService.searchCallCount, 0)
     }
 
+    @MainActor
     func testSearchText_validQuery_performsSearchAfterDebounce() async throws {
         let mockPlace = NominatimPlace(
             placeId: 1, lat: "48.85", lon: "2.35",
@@ -77,6 +88,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.places.count, 1)
     }
 
+    @MainActor
     func testSearchText_rapidChanges_onlySearchesOnce() async throws {
         let mockService = MockNominatimService()
         let viewModel = SearchViewModel(service: mockService)
@@ -93,6 +105,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertEqual(mockService.lastQuery, "Paris")
     }
 
+    @MainActor
     func testSearchText_serviceError_setsErrorMessage() async throws {
         let mockService = MockNominatimService()
         mockService.searchResult = .failure(NetworkError.serverError(500))
@@ -106,6 +119,7 @@ final class SearchViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.places.isEmpty)
     }
 
+    @MainActor
     func testClearSearch_resetsAllState() async throws {
         let mockPlace = NominatimPlace(
             placeId: 1, lat: "0", lon: "0",

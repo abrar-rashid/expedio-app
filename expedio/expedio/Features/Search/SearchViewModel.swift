@@ -25,6 +25,10 @@ final class SearchViewModel {
         self.service = service
     }
 
+    deinit {
+        searchTask?.cancel()
+    }
+
     private func debounceSearch() {
         searchTask?.cancel()
 
