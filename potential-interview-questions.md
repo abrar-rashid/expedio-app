@@ -1,0 +1,1 @@
+- Implement caching for the search feature, to cache locations the user has already searched for

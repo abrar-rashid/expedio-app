@@ -148,6 +148,50 @@ extension View {
 }
 ```
 
+#### 1.4 `Expedio/Core/Components/LoadingView.swift`
+```swift
+import SwiftUI
+
+struct LoadingView: View {
+    var message: String? = nil
+
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            ZStack {
+                Circle()
+                    .stroke(Theme.Colors.primary.opacity(0.2), lineWidth: 4)
+                    .frame(width: 44, height: 44)
+
+                Circle()
+                    .trim(from: 0, to: 0.7)
+                    .stroke(
+                        Theme.Colors.primary,
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    )
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(isAnimating ? 360 : 0))
+                    .animation(
+                        .linear(duration: 1)
+                        .repeatForever(autoreverses: false),
+                        value: isAnimating
+                    )
+            }
+
+            if let message = message {
+                Text(message)
+                    .font(Theme.Typography.subheadline)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+        }
+        .onAppear {
+            isAnimating = true
+        }
+    }
+}
+```
+
 ### Unit Tests for Phase 1
 
 #### `ExpedioTests/Core/ThemeTests.swift`

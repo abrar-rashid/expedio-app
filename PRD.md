@@ -49,6 +49,8 @@ Expedio/
 ├── Core/
 │   ├── Design/
 │   │   └── Theme.swift               # Colors, typography, spacing
+│   ├── Components/
+│   │   └── LoadingView.swift         # Styled loading spinner
 │   └── Extensions/
 │       └── View+Extensions.swift
 ├── Models/
