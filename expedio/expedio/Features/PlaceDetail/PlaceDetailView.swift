@@ -36,7 +36,7 @@ struct PlaceDetailView: View {
             AddToTripSheet(
                 trips: trips,
                 onSelect: { trip in
-                    viewModel.addToTrip(trip, context: modelContext)
+                    addPlaceToTrip(trip)
                     showAddToTrip = false
                     showSaveConfirmation = true
                 }
@@ -111,5 +111,13 @@ struct PlaceDetailView: View {
     private var placeName: String {
         viewModel.place.displayName.components(separatedBy: ",").first
             ?? viewModel.place.displayName
+    }
+
+    private func addPlaceToTrip(_ trip: Trip) {
+        let orderIndex = trip.places.count
+        let savedPlace = SavedPlace(from: viewModel.place, orderIndex: orderIndex)
+        savedPlace.trip = trip
+        trip.places.append(savedPlace)
+        try? modelContext.save()
     }
 }

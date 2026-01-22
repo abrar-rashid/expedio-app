@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import SwiftData
 import Observation
 
 @Observable
@@ -25,22 +24,11 @@ final class PlaceDetailViewModel {
         self.place = place
     }
 
-    @MainActor
-    func addToTrip(_ trip: Trip, context: ModelContext) {
-        isSaving = true
-        saveError = nil
+    func setSaving(_ saving: Bool) {
+        isSaving = saving
+    }
 
-        let orderIndex = trip.places.count
-        let savedPlace = SavedPlace(from: place, orderIndex: orderIndex)
-        savedPlace.trip = trip
-        trip.places.append(savedPlace)
-
-        do {
-            try context.save()
-        } catch {
-            saveError = error.localizedDescription
-        }
-
-        isSaving = false
+    func setError(_ error: String?) {
+        saveError = error
     }
 }
