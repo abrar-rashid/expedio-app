@@ -44,4 +44,16 @@ final class SavedPlace {
         self.addedAt = addedAt
         self.trip = trip
     }
+
+    convenience init(from place: NominatimPlace, orderIndex: Int = 0) {
+        self.init(
+            placeId: String(place.placeId),
+            name: place.displayName.components(separatedBy: ",").first ?? place.displayName,
+            displayName: place.displayName,
+            category: place.formattedCategory,
+            lat: place.lat,
+            lon: place.lon,
+            orderIndex: orderIndex
+        )
+    }
 }
