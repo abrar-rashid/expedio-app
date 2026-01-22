@@ -2,31 +2,54 @@
 //  PlaceDetailView.swift
 //  Expedio
 //
-//  Detail view for a selected place (full implementation in Phase 4)
+//  Detail view for a selected place with trip saving functionality
 //
 
 import SwiftUI
 import MapKit
+import SwiftData
 
 struct PlaceDetailView: View {
-    let place: NominatimPlace
+    @Environment(\.modelContext) private var modelContext
+    @Query private var trips: [Trip]
+    @State private var viewModel: PlaceDetailViewModel
+    @State private var showAddToTrip = false
+    @State private var showSaveConfirmation = false
+
+    init(place: NominatimPlace) {
+        _viewModel = State(initialValue: PlaceDetailViewModel(place: place))
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 mapSection
                 infoSection
+                addToTripButton
             }
             .padding(Theme.Spacing.md)
         }
         .background(Theme.Colors.background)
         .navigationTitle(placeName)
         .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showAddToTrip) {
+            AddToTripSheet(
+                trips: trips,
+                onSelect: { trip in
+                    viewModel.addToTrip(trip, context: modelContext)
+                    showAddToTrip = false
+                    showSaveConfirmation = true
+                }
+            )
+        }
+        .alert("Added to Trip", isPresented: $showSaveConfirmation) {
+            Button("OK", role: .cancel) {}
+        }
     }
 
     @ViewBuilder
     private var mapSection: some View {
-        if let coord = coordinate {
+        if let coord = viewModel.coordinate {
             ZStack {
                 // Loading placeholder
                 RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
@@ -53,17 +76,17 @@ struct PlaceDetailView: View {
 
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            Text(place.displayName)
+            Text(viewModel.place.displayName)
                 .font(Theme.Typography.body)
                 .foregroundColor(Theme.Colors.textSecondary)
 
-            if !place.formattedCategory.isEmpty {
-                Label(place.formattedCategory, systemImage: "tag")
+            if !viewModel.place.formattedCategory.isEmpty {
+                Label(viewModel.place.formattedCategory, systemImage: "tag")
                     .font(Theme.Typography.subheadline)
                     .foregroundColor(Theme.Colors.primary)
             }
 
-            if let coord = coordinate {
+            if let coord = viewModel.coordinate {
                 Label("\(coord.lat, specifier: "%.4f"), \(coord.lon, specifier: "%.4f")",
                       systemImage: "location")
                     .font(Theme.Typography.caption)
@@ -74,13 +97,19 @@ struct PlaceDetailView: View {
         .cardStyle()
     }
 
-    private var placeName: String {
-        place.displayName.components(separatedBy: ",").first ?? place.displayName
+    private var addToTripButton: some View {
+        Button {
+            showAddToTrip = true
+        } label: {
+            Label("Add to Trip", systemImage: "plus.circle.fill")
+                .frame(maxWidth: .infinity)
+                .primaryButtonStyle()
+        }
+        .disabled(trips.isEmpty)
     }
 
-    private var coordinate: (lat: Double, lon: Double)? {
-        guard let lat = Double(place.lat),
-              let lon = Double(place.lon) else { return nil }
-        return (lat, lon)
+    private var placeName: String {
+        viewModel.place.displayName.components(separatedBy: ",").first
+            ?? viewModel.place.displayName
     }
 }
