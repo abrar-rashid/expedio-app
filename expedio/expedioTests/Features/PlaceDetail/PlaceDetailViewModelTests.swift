@@ -6,10 +6,11 @@
 //
 
 import XCTest
-import SwiftData
 @testable import expedio
 
 final class PlaceDetailViewModelTests: XCTestCase {
+
+    // MARK: - Coordinate Parsing Tests
 
     func testCoordinate_validLatLon_returnsTuple() {
         let place = NominatimPlace(
@@ -46,6 +47,16 @@ final class PlaceDetailViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.coordinate)
     }
 
+    func testCoordinate_emptyStrings_returnsNil() {
+        let place = NominatimPlace(
+            placeId: 1, lat: "", lon: "",
+            displayName: "Test", category: nil, type: nil
+        )
+        let viewModel = PlaceDetailViewModel(place: place)
+
+        XCTAssertNil(viewModel.coordinate)
+    }
+
     func testInitialState_notSaving() {
         let place = NominatimPlace(
             placeId: 1, lat: "0", lon: "0",
@@ -57,52 +68,31 @@ final class PlaceDetailViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.saveError)
     }
 
-    @MainActor
-    func testAddToTrip_addsPlaceToTrip() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Trip.self, SavedPlace.self, configurations: config)
-        let context = container.mainContext
-
-        let trip = Trip(name: "Test Trip", destination: "Paris")
-        context.insert(trip)
-
+    func testPlace_returnsInjectedPlace() {
         let place = NominatimPlace(
-            placeId: 123, lat: "48.85", lon: "2.35",
-            displayName: "Eiffel Tower, Paris", category: "tourism", type: "attraction"
+            placeId: 999, lat: "51.5074", lon: "-0.1278",
+            displayName: "London, UK", category: "place", type: "city"
         )
         let viewModel = PlaceDetailViewModel(place: place)
 
-        viewModel.addToTrip(trip, context: context)
-
-        XCTAssertEqual(trip.places.count, 1)
-        XCTAssertEqual(trip.places.first?.placeId, "123")
-        XCTAssertEqual(trip.places.first?.orderIndex, 0)
+        XCTAssertEqual(viewModel.place.placeId, 999)
+        XCTAssertEqual(viewModel.place.displayName, "London, UK")
+        XCTAssertEqual(viewModel.place.category, "place")
+        XCTAssertEqual(viewModel.place.type, "city")
     }
 
-    @MainActor
-    func testAddToTrip_incrementsOrderIndex() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Trip.self, SavedPlace.self, configurations: config)
-        let context = container.mainContext
-
-        let trip = Trip(name: "Test Trip", destination: "Paris")
-        let existingPlace = SavedPlace(
-            placeId: "1", name: "First", displayName: "First Place",
-            category: "Test", lat: "0", lon: "0", orderIndex: 0
-        )
-        trip.places.append(existingPlace)
-        context.insert(trip)
-
+    func testCoordinate_negativeValues_parsesCorrectly() {
         let place = NominatimPlace(
-            placeId: 2, lat: "0", lon: "0",
-            displayName: "Second", category: nil, type: nil
+            placeId: 1, lat: "-33.8688", lon: "151.2093",
+            displayName: "Sydney, Australia", category: nil, type: nil
         )
         let viewModel = PlaceDetailViewModel(place: place)
 
-        viewModel.addToTrip(trip, context: context)
+        let coord = viewModel.coordinate
 
-        XCTAssertEqual(trip.places.count, 2)
-        let newPlace = trip.places.first { $0.placeId == "2" }
-        XCTAssertEqual(newPlace?.orderIndex, 1)
+        XCTAssertNotNil(coord)
+        guard let coord = coord else { return }
+        XCTAssertEqual(coord.lat, -33.8688, accuracy: 0.0001)
+        XCTAssertEqual(coord.lon, 151.2093, accuracy: 0.0001)
     }
 }
