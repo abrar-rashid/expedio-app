@@ -39,7 +39,9 @@ struct TripDetailView: View {
         List {
             Section {
                 ForEach(viewModel.sortedPlaces) { place in
-                    SavedPlaceRow(place: place)
+                    NavigationLink(value: place) {
+                        SavedPlaceRow(place: place)
+                    }
                 }
                 .onDelete(perform: deletePlaces)
                 .onMove(perform: movePlaces)
@@ -50,6 +52,9 @@ struct TripDetailView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.Colors.background)
+        .navigationDestination(for: SavedPlace.self) { place in
+            SavedPlaceDetailView(place: place)
+        }
     }
 
     private var tripHeader: some View {
