@@ -15,6 +15,7 @@ struct PlaceDetailView: View {
     @State private var viewModel: PlaceDetailViewModel
     @State private var showAddToTrip = false
     @State private var showSaveConfirmation = false
+    @State private var isMapReady = false
 
     init(place: NominatimPlace) {
         _viewModel = State(initialValue: PlaceDetailViewModel(place: place))
@@ -56,20 +57,30 @@ struct PlaceDetailView: View {
                     .fill(Theme.Colors.surface)
                     .frame(height: 200)
                     .overlay {
-                        LoadingView(message: "Loading map...")
+                        if !isMapReady {
+                            LoadingView(message: "Loading map...")
+                        }
                     }
 
                 // Map renders on top once loaded
-                Map(initialPosition: .region(MKCoordinateRegion(
-                    center: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lon),
-                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                ))) {
-                    Marker(placeName, coordinate: CLLocationCoordinate2D(
-                        latitude: coord.lat, longitude: coord.lon
-                    ))
+                if isMapReady {
+                    Map(initialPosition: .region(MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lon),
+                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    ))) {
+                        Marker(placeName, coordinate: CLLocationCoordinate2D(
+                            latitude: coord.lat, longitude: coord.lon
+                        ))
+                    }
+                    .frame(height: 200)
+                    .cornerRadius(Theme.CornerRadius.md)
                 }
-                .frame(height: 200)
-                .cornerRadius(Theme.CornerRadius.md)
+            }
+            .task {
+                try? await Task.sleep(for: .milliseconds(500))
+                withAnimation {
+                    isMapReady = true
+                }
             }
         }
     }
