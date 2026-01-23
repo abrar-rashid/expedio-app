@@ -20,8 +20,10 @@ final class PlaceDetailViewModelTests: XCTestCase {
         let coord = viewModel.coordinate
 
         XCTAssertNotNil(coord)
-        XCTAssertEqual(coord?.lat, 48.8566, accuracy: 0.0001)
-        XCTAssertEqual(coord?.lon, 2.3522, accuracy: 0.0001)
+        if let coord = coord {
+            XCTAssertEqual(coord.lat, 48.8566, accuracy: 0.0001)
+            XCTAssertEqual(coord.lon, 2.3522, accuracy: 0.0001)
+        }
     }
 
     func testCoordinate_invalidLat_returnsNil() {
@@ -103,7 +105,9 @@ final class PlaceDetailViewModelTests: XCTestCase {
         let coord = viewModel.coordinate
 
         XCTAssertNotNil(coord)
-        XCTAssertEqual(coord?.lat, -33.8688, accuracy: 0.0001)
-        XCTAssertEqual(coord?.lon, 151.2093, accuracy: 0.0001)
+        if let coord = coord {
+            XCTAssertEqual(coord.lat, -33.8688, accuracy: 0.0001)
+            XCTAssertEqual(coord.lon, 151.2093, accuracy: 0.0001)
+        }
     }
 }

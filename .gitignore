@@ -54,3 +54,9 @@ fastlane/test_output
 *.swp
 *.swo
 *~
+
+## Secrets & Environment
+.env
+.env.local
+**/Secrets.swift
+!**/Secrets.example.swift

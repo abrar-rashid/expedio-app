@@ -55,28 +55,27 @@ struct PlaceDetailView: View {
     private var mapSection: some View {
         if let coord = viewModel.coordinate {
             ZStack {
-                // Loading placeholder
-                RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
-                    .fill(Theme.Colors.surface)
-                    .frame(height: 200)
-                    .overlay {
-                        if !isMapReady {
+                // Map renders immediately but hidden, allowing it to load in background
+                Map(initialPosition: .region(MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lon),
+                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                ))) {
+                    Marker(placeName, coordinate: CLLocationCoordinate2D(
+                        latitude: coord.lat, longitude: coord.lon
+                    ))
+                }
+                .frame(height: 200)
+                .cornerRadius(Theme.CornerRadius.md)
+                .opacity(isMapReady ? 1 : 0)
+
+                // Loading placeholder shows on top until map is ready
+                if !isMapReady {
+                    RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
+                        .fill(Theme.Colors.surface)
+                        .frame(height: 200)
+                        .overlay {
                             LoadingView(message: "Loading map...")
                         }
-                    }
-
-                // Map renders on top once loaded
-                if isMapReady {
-                    Map(initialPosition: .region(MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lon),
-                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                    ))) {
-                        Marker(placeName, coordinate: CLLocationCoordinate2D(
-                            latitude: coord.lat, longitude: coord.lon
-                        ))
-                    }
-                    .frame(height: 200)
-                    .cornerRadius(Theme.CornerRadius.md)
                 }
             }
             .task {
