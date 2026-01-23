@@ -2354,3 +2354,601 @@ After completing all phases, verify the app works end-to-end:
 | Features/Trips | 6 (TripsListView.swift, TripsListViewModel.swift, TripDetailView.swift, TripDetailViewModel.swift, TripCard.swift, CreateTripSheet.swift) |
 | **Total Source Files** | **22** |
 | **Total Test Files** | **12** |
+
+---
+
+## Phase 7: Enhanced Place Data (extratags)
+
+### Goals
+- Add extratags=1 to Nominatim API calls for rich place data
+- Update NominatimPlace model with extratags fields
+- Display phone, website, hours, cuisine in PlaceDetailView
+
+### Files to Modify
+
+#### 7.1 Update `Expedio/Services/Networking/Endpoint.swift`
+```swift
+case .search(let query, let limit):
+    var components = URLComponents(string: "https://nominatim.openstreetmap.org/search")
+    components?.queryItems = [
+        URLQueryItem(name: "q", value: query),
+        URLQueryItem(name: "format", value: "jsonv2"),
+        URLQueryItem(name: "limit", value: String(limit)),
+        URLQueryItem(name: "addressdetails", value: "1"),
+        URLQueryItem(name: "extratags", value: "1"),
+        URLQueryItem(name: "namedetails", value: "1")
+    ]
+    return components?.url
+```
+
+#### 7.2 Update `Expedio/Models/NominatimPlace.swift`
+```swift
+struct NominatimPlace: Codable, Identifiable, Hashable {
+    let placeId: Int
+    let lat: String
+    let lon: String
+    let displayName: String
+    let category: String?
+    let type: String?
+    let extratags: NominatimExtratags?
+
+    // ... existing code ...
+
+    enum CodingKeys: String, CodingKey {
+        case placeId = "place_id"
+        case lat, lon
+        case displayName = "display_name"
+        case category = "class"
+        case type
+        case extratags
+    }
+}
+
+struct NominatimExtratags: Codable, Hashable {
+    let phone: String?
+    let website: String?
+    let openingHours: String?
+    let cuisine: String?
+    let wheelchair: String?
+    let wikipedia: String?
+    let dietVegan: String?
+    let dietVegetarian: String?
+
+    enum CodingKeys: String, CodingKey {
+        case phone, website, cuisine, wheelchair, wikipedia
+        case openingHours = "opening_hours"
+        case dietVegan = "diet:vegan"
+        case dietVegetarian = "diet:vegetarian"
+    }
+}
+```
+
+#### 7.3 Update `Expedio/Features/PlaceDetail/PlaceDetailView.swift`
+Add rich data display section:
+```swift
+private var richDataSection: some View {
+    VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+        if let phone = viewModel.place.extratags?.phone {
+            Link(destination: URL(string: "tel:\(phone)")!) {
+                Label(phone, systemImage: "phone.fill")
+            }
+        }
+        if let website = viewModel.place.extratags?.website,
+           let url = URL(string: website) {
+            Link(destination: url) {
+                Label("Website", systemImage: "globe")
+            }
+        }
+        if let hours = viewModel.place.extratags?.openingHours {
+            Label(hours, systemImage: "clock")
+        }
+        if let cuisine = viewModel.place.extratags?.cuisine {
+            Label(cuisine.capitalized, systemImage: "fork.knife")
+        }
+    }
+    .font(Theme.Typography.subheadline)
+    .foregroundColor(Theme.Colors.textSecondary)
+}
+```
+
+### Phase 7 Checklist
+- [ ] Update Endpoint.swift with extratags=1, namedetails=1, format=jsonv2
+- [ ] Add NominatimExtratags struct to NominatimPlace.swift
+- [ ] Update PlaceDetailView to display rich data
+- [ ] Add clickable phone and website links
+- [ ] Test with places that have extratags (restaurants, museums)
+- [ ] Handle nil extratags gracefully
+
+---
+
+## Phase 8: Unsplash Image Service
+
+### Goals
+- Create UnsplashService for fetching place/city images
+- Implement image caching (memory + disk)
+- Add CachedAsyncImage component with attribution
+
+### Files to Create
+
+#### 8.1 `Expedio/Models/UnsplashPhoto.swift`
+```swift
+import Foundation
+
+struct UnsplashSearchResponse: Codable {
+    let results: [UnsplashPhoto]
+}
+
+struct UnsplashPhoto: Codable, Identifiable {
+    let id: String
+    let urls: UnsplashURLs
+    let user: UnsplashUser
+    let color: String?
+}
+
+struct UnsplashURLs: Codable {
+    let thumb: String
+    let small: String
+    let regular: String
+    let full: String
+}
+
+struct UnsplashUser: Codable {
+    let name: String
+    let username: String
+}
+```
+
+#### 8.2 `Expedio/Services/Networking/UnsplashService.swift`
+```swift
+import Foundation
+
+final class UnsplashService {
+    private let session: URLSession
+    private let accessKey: String
+    private let baseURL = "https://api.unsplash.com"
+
+    init(accessKey: String, session: URLSession = .shared) {
+        self.accessKey = accessKey
+        self.session = session
+    }
+
+    func searchPhotos(query: String, perPage: Int = 1) async throws -> [UnsplashPhoto] {
+        var components = URLComponents(string: "\(baseURL)/search/photos")!
+        components.queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "per_page", value: String(perPage)),
+            URLQueryItem(name: "orientation", value: "landscape")
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Client-ID \(accessKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("v1", forHTTPHeaderField: "Accept-Version")
+
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder().decode(UnsplashSearchResponse.self, from: data)
+        return response.results
+    }
+}
+```
+
+#### 8.3 `Expedio/Services/Networking/ImageCacheManager.swift`
+```swift
+import UIKit
+
+final class ImageCacheManager {
+    static let shared = ImageCacheManager()
+    private let cache = NSCache<NSString, UIImage>()
+    private let fileManager = FileManager.default
+    private lazy var cacheDirectory: URL = {
+        fileManager.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ImageCache")
+    }()
+
+    private init() {
+        try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
+    }
+
+    func image(forKey key: String) -> UIImage? {
+        cache.object(forKey: key as NSString)
+    }
+
+    func setImage(_ image: UIImage, forKey key: String) {
+        cache.setObject(image, forKey: key as NSString)
+    }
+}
+```
+
+#### 8.4 `Expedio/Core/Components/CachedAsyncImage.swift`
+```swift
+import SwiftUI
+
+struct CachedAsyncImage<Content: View, Placeholder: View>: View {
+    let url: URL?
+    let content: (Image) -> Content
+    let placeholder: () -> Placeholder
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image = image {
+                content(Image(uiImage: image))
+            } else {
+                placeholder().onAppear { loadImage() }
+            }
+        }
+    }
+
+    private func loadImage() {
+        guard let url = url else { return }
+        let key = url.absoluteString
+        if let cached = ImageCacheManager.shared.image(forKey: key) {
+            self.image = cached
+            return
+        }
+        Task {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let uiImage = UIImage(data: data) {
+                ImageCacheManager.shared.setImage(uiImage, forKey: key)
+                await MainActor.run { self.image = uiImage }
+            }
+        }
+    }
+}
+```
+
+#### 8.5 `Expedio/Core/Components/UnsplashAttributionView.swift`
+```swift
+import SwiftUI
+
+struct UnsplashAttributionView: View {
+    let photographerName: String
+    let photographerUsername: String
+    private let appName = "Expedio"
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("Photo by")
+            Link(photographerName, destination: photographerURL)
+            Text("on")
+            Link("Unsplash", destination: unsplashURL)
+        }
+        .font(Theme.Typography.caption)
+        .foregroundColor(Theme.Colors.textSecondary)
+    }
+
+    private var photographerURL: URL {
+        URL(string: "https://unsplash.com/@\(photographerUsername)?utm_source=\(appName)&utm_medium=referral")!
+    }
+    private var unsplashURL: URL {
+        URL(string: "https://unsplash.com/?utm_source=\(appName)&utm_medium=referral")!
+    }
+}
+```
+
+### Phase 8 Checklist
+- [ ] Create UnsplashPhoto model with Codable
+- [ ] Implement UnsplashService with search endpoint
+- [ ] Build ImageCacheManager with NSCache
+- [ ] Create CachedAsyncImage component
+- [ ] Add UnsplashAttributionView (required by Unsplash)
+- [ ] Test image loading and caching
+
+---
+
+## Phase 9: Popular Destinations Homepage
+
+### Goals
+- Create HomeView as the first tab with popular destinations
+- Display destination cards with Unsplash images
+- Navigate to category browse on destination tap
+
+### Files to Create
+
+#### 9.1 `Expedio/Models/Destination.swift`
+```swift
+import Foundation
+
+struct Destination: Identifiable {
+    let id = UUID()
+    let name: String
+    let country: String
+    let lat: Double
+    let lon: Double
+    var searchQuery: String { "\(name) \(country) travel" }
+
+    static let popular: [Destination] = [
+        Destination(name: "Paris", country: "France", lat: 48.8566, lon: 2.3522),
+        Destination(name: "Tokyo", country: "Japan", lat: 35.6762, lon: 139.6503),
+        Destination(name: "New York", country: "USA", lat: 40.7128, lon: -74.0060),
+        Destination(name: "London", country: "UK", lat: 51.5074, lon: -0.1278),
+        Destination(name: "Rome", country: "Italy", lat: 41.9028, lon: 12.4964),
+        Destination(name: "Barcelona", country: "Spain", lat: 41.3851, lon: 2.1734),
+        Destination(name: "Dubai", country: "UAE", lat: 25.2048, lon: 55.2708),
+        Destination(name: "Sydney", country: "Australia", lat: -33.8688, lon: 151.2093),
+        Destination(name: "Istanbul", country: "Turkey", lat: 41.0082, lon: 28.9784),
+        Destination(name: "Bangkok", country: "Thailand", lat: 13.7563, lon: 100.5018),
+        Destination(name: "Amsterdam", country: "Netherlands", lat: 52.3676, lon: 4.9041),
+        Destination(name: "Singapore", country: "Singapore", lat: 1.3521, lon: 103.8198),
+    ]
+}
+```
+
+#### 9.2 `Expedio/Features/Home/HomeView.swift`
+```swift
+import SwiftUI
+
+struct HomeView: View {
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                    ForEach(Destination.popular) { destination in
+                        NavigationLink(value: destination) {
+                            DestinationCard(destination: destination)
+                        }
+                    }
+                }
+                .padding(Theme.Spacing.md)
+            }
+            .background(Theme.Colors.background)
+            .navigationTitle("Explore")
+            .navigationDestination(for: Destination.self) { destination in
+                CategoryBrowseView(destination: destination)
+            }
+        }
+    }
+}
+```
+
+#### 9.3 `Expedio/Features/Home/Components/DestinationCard.swift`
+```swift
+import SwiftUI
+
+struct DestinationCard: View {
+    let destination: Destination
+    @State private var photo: UnsplashPhoto?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CachedAsyncImage(url: URL(string: photo?.urls.small ?? "")) { image in
+                image.resizable().aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Rectangle().fill(Theme.Colors.secondary.opacity(0.3))
+            }
+            .frame(height: 120)
+            .clipped()
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                Text(destination.name)
+                    .font(Theme.Typography.headline)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                Text(destination.country)
+                    .font(Theme.Typography.caption)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+            .padding(Theme.Spacing.sm)
+        }
+        .cardStyle()
+        .task { await loadImage() }
+    }
+
+    private func loadImage() async {
+        // Load from UnsplashService
+    }
+}
+```
+
+#### 9.4 Update `Expedio/App/ContentView.swift`
+```swift
+TabView(selection: $selectedTab) {
+    HomeView()
+        .tabItem { Label("Explore", systemImage: "globe") }
+        .tag(0)
+
+    SearchView()
+        .tabItem { Label("Search", systemImage: "magnifyingglass") }
+        .tag(1)
+
+    TripsListView()
+        .tabItem { Label("Trips", systemImage: "suitcase.fill") }
+        .tag(2)
+}
+```
+
+### Phase 9 Checklist
+- [ ] Create Destination model with static popular destinations
+- [ ] Build HomeView with LazyVGrid
+- [ ] Create DestinationCard with Unsplash images
+- [ ] Update ContentView to add Home as first tab
+- [ ] Navigate to CategoryBrowseView on tap
+- [ ] Test image loading for all destinations
+
+---
+
+## Phase 10: Category Browsing (Overpass API)
+
+### Goals
+- Create OverpassService for querying places by category
+- Build CategoryBrowseView with filtered results
+- Support restaurants, cafes, museums, attractions, etc.
+
+### Files to Create
+
+#### 10.1 `Expedio/Models/OverpassElement.swift`
+```swift
+import Foundation
+import CoreLocation
+
+struct OverpassResponse: Codable {
+    let elements: [OverpassElement]
+}
+
+struct OverpassElement: Codable, Identifiable {
+    let type: String
+    let id: Int64
+    let lat: Double?
+    let lon: Double?
+    let center: OverpassCenter?
+    let tags: [String: String]?
+
+    var coordinate: CLLocationCoordinate2D? {
+        if let lat = lat, let lon = lon {
+            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+        if let center = center {
+            return CLLocationCoordinate2D(latitude: center.lat, longitude: center.lon)
+        }
+        return nil
+    }
+
+    var name: String { tags?["name"] ?? "Unknown" }
+    var category: String { tags?["amenity"] ?? tags?["tourism"] ?? "" }
+}
+
+struct OverpassCenter: Codable {
+    let lat: Double
+    let lon: Double
+}
+```
+
+#### 10.2 `Expedio/Services/Networking/OverpassService.swift`
+```swift
+import Foundation
+
+enum PlaceCategory: String, CaseIterable {
+    case restaurant, cafe, bar, museum, attraction, hotel, viewpoint
+
+    var osmTag: String {
+        switch self {
+        case .restaurant, .cafe, .bar: return "amenity"
+        case .museum, .attraction, .hotel, .viewpoint: return "tourism"
+        }
+    }
+}
+
+final class OverpassService {
+    private let baseURL = "https://overpass-api.de/api/interpreter"
+
+    func fetchPlaces(in city: String, category: PlaceCategory) async throws -> [OverpassElement] {
+        let query = """
+        [out:json][timeout:25];
+        area["name"="\(city)"]["admin_level"~"[4-8]"]->.searchArea;
+        node["\(category.osmTag)"="\(category.rawValue)"](area.searchArea);
+        out center body 50;
+        """
+
+        var request = URLRequest(url: URL(string: baseURL)!)
+        request.httpMethod = "POST"
+        request.httpBody = query.data(using: .utf8)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try JSONDecoder().decode(OverpassResponse.self, from: data).elements
+    }
+}
+```
+
+#### 10.3 `Expedio/Features/Browse/CategoryBrowseView.swift`
+```swift
+import SwiftUI
+
+struct CategoryBrowseView: View {
+    let destination: Destination
+    @State private var selectedCategory: PlaceCategory = .attraction
+    @State private var places: [OverpassElement] = []
+    @State private var isLoading = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            categoryPicker
+            if isLoading {
+                ProgressView()
+            } else {
+                placesList
+            }
+        }
+        .navigationTitle(destination.name)
+        .task { await loadPlaces() }
+        .onChange(of: selectedCategory) { await loadPlaces() }
+    }
+
+    private var categoryPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack {
+                ForEach(PlaceCategory.allCases, id: \.self) { cat in
+                    Button(cat.rawValue.capitalized) {
+                        selectedCategory = cat
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(selectedCategory == cat ? Theme.Colors.primary : Theme.Colors.secondary)
+                }
+            }
+            .padding()
+        }
+    }
+
+    private var placesList: some View {
+        List(places) { place in
+            VStack(alignment: .leading) {
+                Text(place.name).font(Theme.Typography.headline)
+                Text(place.category.capitalized).font(Theme.Typography.caption)
+            }
+        }
+    }
+
+    private func loadPlaces() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            places = try await OverpassService().fetchPlaces(
+                in: destination.name,
+                category: selectedCategory
+            )
+        } catch {
+            places = []
+        }
+    }
+}
+```
+
+### Phase 10 Checklist
+- [ ] Create OverpassElement model
+- [ ] Implement OverpassService with query builder
+- [ ] Create PlaceCategory enum with OSM tags
+- [ ] Build CategoryBrowseView with category picker
+- [ ] Display filtered places list
+- [ ] Handle loading and empty states
+- [ ] Test with various cities and categories
+
+---
+
+## Updated Verification Plan
+
+After completing all phases (1-10), verify:
+
+1-8. (Original verification steps)
+9. **Enhanced Data:** Search "Eiffel Tower" → detail shows phone, website, hours
+10. **Images:** Destinations show Unsplash images with attribution
+11. **Homepage:** Launch app → see destination cards → tap to explore
+12. **Categories:** Select Paris → tap "Restaurants" → see restaurant list
+
+---
+
+## Updated File Summary
+
+| Category | Files |
+|----------|-------|
+| App | 2 |
+| Core/Design | 1 |
+| Core/Components | 3 (LoadingView, CachedAsyncImage, UnsplashAttributionView) |
+| Core/Extensions | 2 |
+| Models | 6 (Trip, SavedPlace, NominatimPlace, UnsplashPhoto, OverpassElement, Destination) |
+| Services | 5 (NominatimService, UnsplashService, OverpassService, ImageCacheManager, Endpoint) |
+| Features/Home | 3 |
+| Features/Search | 3 |
+| Features/Browse | 2 |
+| Features/PlaceDetail | 3 |
+| Features/Trips | 6 |
+| **Total Source Files** | **36** |

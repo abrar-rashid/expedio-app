@@ -7,7 +7,10 @@ A SwiftUI-based iOS travel itinerary app for interviewing senior iOS engineers. 
 - **UI Framework:** SwiftUI (iOS 17+)
 - **Architecture:** MVVM with @Observable
 - **Storage:** SwiftData
-- **API:** OpenStreetMap Nominatim (free, no API key)
+- **APIs:**
+  - OpenStreetMap Nominatim (geocoding, place search - free, no API key)
+  - Overpass API (category-based place queries - free, no API key)
+  - Unsplash API (place/city images - free tier: 50 req/hour demo, 5000 req/hour production)
 - **Design:** Soft pastel colors, Playfair Display serif font
 
 ---
@@ -38,6 +41,28 @@ A SwiftUI-based iOS travel itinerary app for interviewing senior iOS engineers. 
 - Remove places from trip
 - Trip metadata display
 
+### 5. Enhanced Place Details
+- Rich place data: phone, website, opening hours
+- Cuisine types and dietary options (vegan, vegetarian)
+- Wikipedia links for more information
+- Wheelchair accessibility info
+
+### 6. Place Images
+- High-quality city/place photos from Unsplash
+- Cached image loading (memory + disk)
+- Photographer attribution (required by Unsplash)
+
+### 7. Popular Destinations Homepage
+- Curated list of 20+ top travel cities
+- Beautiful destination cards with images
+- Quick access to explore places in each city
+- Category shortcuts (restaurants, attractions, etc.)
+
+### 8. Category Browsing
+- Browse restaurants, cafes, museums, attractions by city
+- Filter by category: restaurants, cafes, bars, museums, attractions, hotels, viewpoints
+- Nearby places search within radius
+
 ---
 
 ## Project Structure
@@ -50,21 +75,37 @@ Expedio/
 │   ├── Design/
 │   │   └── Theme.swift               # Colors, typography, spacing
 │   ├── Components/
-│   │   └── LoadingView.swift         # Styled loading spinner
+│   │   ├── LoadingView.swift         # Styled loading spinner
+│   │   ├── CachedAsyncImage.swift    # Image loading with cache
+│   │   └── UnsplashAttributionView.swift  # Photo attribution
 │   └── Extensions/
 │       └── View+Extensions.swift
 ├── Models/
 │   ├── Trip.swift                    # SwiftData model
 │   ├── SavedPlace.swift              # SwiftData model
-│   └── NominatimPlace.swift          # API response model
+│   ├── NominatimPlace.swift          # Nominatim API response
+│   ├── UnsplashPhoto.swift           # Unsplash API response
+│   ├── OverpassElement.swift         # Overpass API response
+│   └── Destination.swift             # Static destination data
 ├── Services/
 │   └── Networking/
-│       ├── NominatimService.swift    # API client
+│       ├── NominatimService.swift    # Place search API client
+│       ├── UnsplashService.swift     # Image API client
+│       ├── OverpassService.swift     # Category query API client
+│       ├── ImageCacheManager.swift   # Image caching (memory + disk)
 │       └── Endpoint.swift            # URL construction
 ├── Features/
+│   ├── Home/
+│   │   ├── HomeView.swift            # Popular destinations homepage
+│   │   ├── HomeViewModel.swift
+│   │   └── Components/
+│   │       └── DestinationCard.swift
 │   ├── Search/
 │   │   ├── SearchView.swift
 │   │   └── SearchViewModel.swift
+│   ├── Browse/
+│   │   ├── CategoryBrowseView.swift  # Category-filtered results
+│   │   └── CategoryBrowseViewModel.swift
 │   ├── PlaceDetail/
 │   │   ├── PlaceDetailView.swift
 │   │   └── PlaceDetailViewModel.swift
@@ -125,6 +166,69 @@ struct NominatimPlace: Codable, Identifiable, Hashable {
     let displayName: String
     let category: String?
     let type: String?
+    let extratags: NominatimExtratags?  // Rich place data
+}
+
+struct NominatimExtratags: Codable, Hashable {
+    let phone: String?
+    let website: String?
+    let openingHours: String?           // OSM format: "Mo-Fr 09:00-18:00"
+    let cuisine: String?                // e.g., "italian", "japanese"
+    let wheelchair: String?             // "yes", "no", "limited"
+    let wikipedia: String?              // e.g., "en:Eiffel Tower"
+    let dietVegan: String?              // "yes", "only", "no"
+    let dietVegetarian: String?
+}
+```
+
+### UnsplashPhoto (API Response)
+```swift
+struct UnsplashPhoto: Codable, Identifiable {
+    let id: String
+    let urls: UnsplashURLs
+    let user: UnsplashUser
+    let color: String?                  // Hex color for placeholder
+}
+
+struct UnsplashURLs: Codable {
+    let thumb: String                   // 200px width
+    let small: String                   // 400px width
+    let regular: String                 // 1080px width
+    let full: String                    // Original size
+}
+
+struct UnsplashUser: Codable {
+    let name: String                    // For attribution
+    let username: String                // For profile link
+}
+```
+
+### OverpassElement (API Response)
+```swift
+struct OverpassElement: Codable, Identifiable {
+    let type: String                    // "node", "way", "relation"
+    let id: Int64
+    let lat: Double?
+    let lon: Double?
+    let center: OverpassCenter?         // For ways/relations
+    let tags: [String: String]?         // name, amenity, tourism, addr:*, etc.
+}
+
+struct OverpassCenter: Codable {
+    let lat: Double
+    let lon: Double
+}
+```
+
+### Destination (Static Data)
+```swift
+struct Destination: Identifiable {
+    let id = UUID()
+    let name: String                    // "Paris"
+    let country: String                 // "France"
+    let lat: Double
+    let lon: Double
+    let searchQuery: String             // For Unsplash: "Paris France travel"
 }
 ```
 
@@ -155,13 +259,15 @@ struct NominatimPlace: Codable, Identifiable, Hashable {
 
 ## API Integration
 
-### Nominatim Search Endpoint
+### Nominatim Search Endpoint (Enhanced)
 ```
 GET https://nominatim.openstreetmap.org/search
 ?q={query}
-&format=json
+&format=jsonv2
 &limit=20
 &addressdetails=1
+&extratags=1
+&namedetails=1
 ```
 
 **Required Headers:**
@@ -169,17 +275,80 @@ GET https://nominatim.openstreetmap.org/search
 
 **Rate Limiting:** 1 request/second (implement debounce)
 
+**Note:** `extratags=1` returns rich data like phone, website, opening_hours, cuisine
+
+---
+
+### Unsplash Search Photos Endpoint
+```
+GET https://api.unsplash.com/search/photos
+?query={city_name}
+&per_page=1
+&orientation=landscape
+```
+
+**Required Headers:**
+- `Authorization: Client-ID {YOUR_ACCESS_KEY}`
+- `Accept-Version: v1`
+
+**Rate Limiting:**
+- Demo: 50 requests/hour
+- Production: 5,000 requests/hour (requires approval)
+
+**Attribution Required:** "Photo by {name} on Unsplash" with links
+- Photographer link: `https://unsplash.com/@{username}?utm_source=Expedio&utm_medium=referral`
+- Unsplash link: `https://unsplash.com/?utm_source=Expedio&utm_medium=referral`
+
+---
+
+### Overpass API (Category Queries)
+```
+POST https://overpass-api.de/api/interpreter
+Content-Type: text/plain
+
+[out:json][timeout:25];
+area["name"="{city_name}"]["admin_level"="8"]->.searchArea;
+node["amenity"="restaurant"](area.searchArea);
+out center body;
+```
+
+**Query by Radius:**
+```
+[out:json][timeout:25];
+node["amenity"="cafe"](around:1000,{lat},{lon});
+out center body;
+```
+
+**Category Tags:**
+| Category | OSM Tag |
+|----------|---------|
+| Restaurants | `amenity=restaurant` |
+| Cafes | `amenity=cafe` |
+| Bars | `amenity=bar` |
+| Museums | `tourism=museum` |
+| Attractions | `tourism=attraction` |
+| Hotels | `tourism=hotel` |
+| Viewpoints | `tourism=viewpoint` |
+
+**Rate Limiting:** ~10,000 queries/day recommended (no hard limit)
+
 ---
 
 ## Screen Flow
 
 ```
-┌─────────────────┐     ┌──────────────────┐
-│   Search Tab    │────▶│  Place Detail    │
-│  (Place List)   │     │  (Add to Trip)   │
-└─────────────────┘     └──────────────────┘
-                               │
-        ┌──────────────────────┘
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│    Home Tab     │────▶│  Category Browse │────▶│  Place Detail    │
+│  (Destinations) │     │  (Restaurants)   │     │  (Add to Trip)   │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
+        │                                               │
+        ▼                                               │
+┌─────────────────┐     ┌──────────────────┐           │
+│   Search Tab    │────▶│  Place Detail    │───────────┤
+│  (Place List)   │     │  (Rich Data)     │           │
+└─────────────────┘     └──────────────────┘           │
+                                                       │
+        ┌──────────────────────────────────────────────┘
         ▼
 ┌─────────────────┐     ┌──────────────────┐
 │   Trips Tab     │────▶│   Trip Detail    │
@@ -228,6 +397,33 @@ GET https://nominatim.openstreetmap.org/search
 3. Add ContentUnavailableView states
 4. Final UI polish and testing
 
+### Phase 7: Enhanced Place Data (extratags)
+1. Add extratags=1, namedetails=1 to Nominatim endpoint
+2. Update NominatimPlace model with NominatimExtratags struct
+3. Display rich data (phone, website, hours) in PlaceDetailView
+4. Add cuisine and dietary info badges
+
+### Phase 8: Unsplash Image Service
+1. Create UnsplashPhoto model
+2. Implement UnsplashService with API client
+3. Build ImageCacheManager (memory + disk caching)
+4. Create CachedAsyncImage component
+5. Add UnsplashAttributionView for required attribution
+
+### Phase 9: Popular Destinations Homepage
+1. Create Destination model with static data (20+ cities)
+2. Build HomeView with destination grid
+3. Create DestinationCard with Unsplash images
+4. Update ContentView to add Home as first tab
+5. Navigate to category browse on destination tap
+
+### Phase 10: Category Browsing (Overpass API)
+1. Create OverpassElement model
+2. Implement OverpassService with query builder
+3. Build CategoryBrowseView with filtered results
+4. Add category selector (restaurants, cafes, museums, etc.)
+5. Support radius-based nearby search
+
 ---
 
 ## PR Bug Injection Points
@@ -256,31 +452,52 @@ These areas are ideal for introducing subtle bugs in PRs for candidates to find:
 6. **Trip Detail:** Tap trip → see saved places
 7. **Reorder:** Edit mode → drag places → order persists
 8. **Delete:** Swipe trip → deleted from list
+9. **Enhanced Data:** Search "Eiffel Tower" → detail shows phone, website, hours (if available)
+10. **Images:** View any destination → image loads with photographer attribution
+11. **Homepage:** Launch app → see destination cards with images → tap to explore
+12. **Categories:** Select destination → tap "Restaurants" → see filtered list
 
 ---
 
-## Files to Create (18 total)
+## Files to Create (31 total)
 
 **App (1)**
 - `Expedio/App/ExpedioApp.swift`
 
-**Core (2)**
+**Core (4)**
 - `Expedio/Core/Design/Theme.swift`
 - `Expedio/Core/Extensions/View+Extensions.swift`
+- `Expedio/Core/Components/CachedAsyncImage.swift`
+- `Expedio/Core/Components/UnsplashAttributionView.swift`
 
-**Models (3)**
+**Models (6)**
 - `Expedio/Models/Trip.swift`
 - `Expedio/Models/SavedPlace.swift`
 - `Expedio/Models/NominatimPlace.swift`
+- `Expedio/Models/UnsplashPhoto.swift`
+- `Expedio/Models/OverpassElement.swift`
+- `Expedio/Models/Destination.swift`
 
-**Services (2)**
+**Services (5)**
 - `Expedio/Services/Networking/NominatimService.swift`
+- `Expedio/Services/Networking/UnsplashService.swift`
+- `Expedio/Services/Networking/OverpassService.swift`
+- `Expedio/Services/Networking/ImageCacheManager.swift`
 - `Expedio/Services/Networking/Endpoint.swift`
+
+**Home Feature (3)**
+- `Expedio/Features/Home/HomeView.swift`
+- `Expedio/Features/Home/HomeViewModel.swift`
+- `Expedio/Features/Home/Components/DestinationCard.swift`
 
 **Search Feature (3)**
 - `Expedio/Features/Search/SearchView.swift`
 - `Expedio/Features/Search/SearchViewModel.swift`
 - `Expedio/Features/Search/Components/PlaceRow.swift`
+
+**Browse Feature (2)**
+- `Expedio/Features/Browse/CategoryBrowseView.swift`
+- `Expedio/Features/Browse/CategoryBrowseViewModel.swift`
 
 **Place Detail (3)**
 - `Expedio/Features/PlaceDetail/PlaceDetailView.swift`
