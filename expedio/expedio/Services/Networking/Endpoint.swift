@@ -16,9 +16,11 @@ enum Endpoint {
             var components = URLComponents(string: "https://nominatim.openstreetmap.org/search")
             components?.queryItems = [
                 URLQueryItem(name: "q", value: query),
-                URLQueryItem(name: "format", value: "json"),
+                URLQueryItem(name: "format", value: "jsonv2"),
                 URLQueryItem(name: "limit", value: String(limit)),
-                URLQueryItem(name: "addressdetails", value: "1")
+                URLQueryItem(name: "addressdetails", value: "1"),
+                URLQueryItem(name: "extratags", value: "1"),
+                URLQueryItem(name: "namedetails", value: "1")
             ]
             return components?.url
         }

@@ -18,8 +18,16 @@ final class EndpointTests: XCTestCase {
         XCTAssertEqual(url?.host, "nominatim.openstreetmap.org")
         XCTAssertEqual(url?.path, "/search")
         XCTAssertTrue(url?.query?.contains("q=Paris") ?? false)
-        XCTAssertTrue(url?.query?.contains("format=json") ?? false)
+        XCTAssertTrue(url?.query?.contains("format=jsonv2") ?? false)
         XCTAssertTrue(url?.query?.contains("limit=20") ?? false)
+    }
+
+    func testSearchEndpoint_includesExtratags() {
+        let endpoint = Endpoint.search(query: "Paris")
+        let url = endpoint.url
+
+        XCTAssertTrue(url?.query?.contains("extratags=1") ?? false)
+        XCTAssertTrue(url?.query?.contains("namedetails=1") ?? false)
     }
 
     func testSearchEndpoint_customLimit_usesLimit() {

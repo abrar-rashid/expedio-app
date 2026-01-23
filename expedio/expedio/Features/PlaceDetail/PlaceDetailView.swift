@@ -26,6 +26,9 @@ struct PlaceDetailView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 mapSection
                 infoSection
+                if viewModel.place.extratags?.hasAnyData == true {
+                    richDataSection
+                }
                 addToTripButton
             }
             .padding(Theme.Spacing.md)
@@ -106,6 +109,101 @@ struct PlaceDetailView: View {
         }
         .padding(Theme.Spacing.md)
         .cardStyle()
+    }
+
+    @ViewBuilder
+    private var richDataSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.md) {
+            Text("Details")
+                .font(Theme.Typography.headline)
+                .foregroundColor(Theme.Colors.textPrimary)
+
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                // Phone
+                if let phone = viewModel.place.extratags?.phone {
+                    if let phoneURL = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))") {
+                        Link(destination: phoneURL) {
+                            Label(phone, systemImage: "phone.fill")
+                                .font(Theme.Typography.subheadline)
+                                .foregroundColor(Theme.Colors.primary)
+                        }
+                    } else {
+                        Label(phone, systemImage: "phone.fill")
+                            .font(Theme.Typography.subheadline)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                    }
+                }
+
+                // Website
+                if let website = viewModel.place.extratags?.website,
+                   let url = URL(string: website) {
+                    Link(destination: url) {
+                        Label("Website", systemImage: "globe")
+                            .font(Theme.Typography.subheadline)
+                            .foregroundColor(Theme.Colors.primary)
+                    }
+                }
+
+                // Opening Hours
+                if let hours = viewModel.place.extratags?.openingHours {
+                    Label(hours, systemImage: "clock")
+                        .font(Theme.Typography.subheadline)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+
+                // Cuisine
+                if let cuisine = viewModel.place.extratags?.formattedCuisine {
+                    Label(cuisine, systemImage: "fork.knife")
+                        .font(Theme.Typography.subheadline)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+
+                // Dietary Options
+                if let extratags = viewModel.place.extratags, !extratags.dietaryOptions.isEmpty {
+                    HStack(spacing: Theme.Spacing.sm) {
+                        ForEach(extratags.dietaryOptions, id: \.self) { option in
+                            Text(option)
+                                .font(Theme.Typography.caption)
+                                .foregroundColor(Theme.Colors.surface)
+                                .padding(.horizontal, Theme.Spacing.sm)
+                                .padding(.vertical, Theme.Spacing.xs)
+                                .background(Theme.Colors.primary)
+                                .cornerRadius(Theme.CornerRadius.sm)
+                        }
+                    }
+                }
+
+                // Wheelchair Accessibility
+                if let wheelchairStatus = viewModel.place.extratags?.wheelchairStatus {
+                    Label(wheelchairStatus, systemImage: "figure.roll")
+                        .font(Theme.Typography.caption)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+
+                // Wikipedia
+                if let wikipedia = viewModel.place.extratags?.wikipedia {
+                    let wikiURL = wikipediaURL(from: wikipedia)
+                    if let url = wikiURL {
+                        Link(destination: url) {
+                            Label("Wikipedia", systemImage: "book.fill")
+                                .font(Theme.Typography.subheadline)
+                                .foregroundColor(Theme.Colors.primary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Theme.Spacing.md)
+        .cardStyle()
+    }
+
+    /// Converts Wikipedia tag (e.g., "en:Eiffel Tower") to URL
+    private func wikipediaURL(from tag: String) -> URL? {
+        let parts = tag.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2 else { return nil }
+        let lang = String(parts[0])
+        let article = String(parts[1]).replacingOccurrences(of: " ", with: "_")
+        return URL(string: "https://\(lang).wikipedia.org/wiki/\(article)")
     }
 
     private var addToTripButton: some View {
