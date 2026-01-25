@@ -2,23 +2,38 @@
 //  PlaceDetailView.swift
 //  Expedio
 //
-//  Detail view for a selected place with trip saving functionality
+//  Unified detail view for any place (from search or saved trips)
 //
 
 import SwiftUI
 import MapKit
 import SwiftData
 
-struct PlaceDetailView: View {
+struct PlaceDetailView<P: PlaceDisplayable>: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var trips: [Trip]
-    @State private var viewModel: PlaceDetailViewModel
+
+    let place: P
+
     @State private var showAddToTrip = false
+    @State private var showCreateTrip = false
     @State private var showSaveConfirmation = false
     @State private var isMapReady = false
 
-    init(place: NominatimPlace) {
-        _viewModel = State(initialValue: PlaceDetailViewModel(place: place))
+    /// Initialize with a NominatimPlace (from search)
+    init(place: NominatimPlace) where P == NominatimPlace {
+        self.place = place
+    }
+
+    /// Initialize with a SavedPlace (from trips)
+    init(place: SavedPlace) where P == SavedPlace {
+        self.place = place
+    }
+
+    private var coordinate: (lat: Double, lon: Double)? {
+        guard let lat = Double(place.lat),
+              let lon = Double(place.lon) else { return nil }
+        return (lat, lon)
     }
 
     var body: some View {
@@ -26,15 +41,17 @@ struct PlaceDetailView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                 mapSection
                 infoSection
-                if viewModel.place.extratags?.hasAnyData == true {
+                if place.extratags?.hasAnyData == true {
                     richDataSection
                 }
-                addToTripButton
+                if place.canAddToTrip {
+                    addToTripButton
+                }
             }
             .padding(Theme.Spacing.md)
         }
         .background(Theme.Colors.background)
-        .navigationTitle(placeName)
+        .navigationTitle(place.shortName)
         .navigationBarTitleDisplayMode(.large)
         .sheet(isPresented: $showAddToTrip) {
             AddToTripSheet(
@@ -43,8 +60,20 @@ struct PlaceDetailView: View {
                     addPlaceToTrip(trip)
                     showAddToTrip = false
                     showSaveConfirmation = true
+                },
+                onCreateNewTrip: {
+                    showAddToTrip = false
+                    showCreateTrip = true
                 }
             )
+        }
+        .sheet(isPresented: $showCreateTrip) {
+            CreateTripSheet { name, destination, startDate, endDate in
+                let trip = createTrip(name: name, destination: destination, startDate: startDate, endDate: endDate)
+                addPlaceToTrip(trip)
+                showCreateTrip = false
+                showSaveConfirmation = true
+            }
         }
         .alert("Added to Trip", isPresented: $showSaveConfirmation) {
             Button("OK", role: .cancel) {}
@@ -53,14 +82,13 @@ struct PlaceDetailView: View {
 
     @ViewBuilder
     private var mapSection: some View {
-        if let coord = viewModel.coordinate {
+        if let coord = coordinate {
             ZStack {
-                // Map renders immediately but hidden, allowing it to load in background
                 Map(initialPosition: .region(MKCoordinateRegion(
                     center: CLLocationCoordinate2D(latitude: coord.lat, longitude: coord.lon),
                     span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                 ))) {
-                    Marker(placeName, coordinate: CLLocationCoordinate2D(
+                    Marker(place.shortName, coordinate: CLLocationCoordinate2D(
                         latitude: coord.lat, longitude: coord.lon
                     ))
                 }
@@ -68,7 +96,6 @@ struct PlaceDetailView: View {
                 .cornerRadius(Theme.CornerRadius.md)
                 .opacity(isMapReady ? 1 : 0)
 
-                // Loading placeholder shows on top until map is ready
                 if !isMapReady {
                     RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
                         .fill(Theme.Colors.surface)
@@ -89,19 +116,27 @@ struct PlaceDetailView: View {
 
     private var infoSection: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-            Text(viewModel.place.displayName)
+            Text(place.displayName)
                 .font(Theme.Typography.body)
                 .foregroundColor(Theme.Colors.textSecondary)
 
-            if !viewModel.place.formattedCategory.isEmpty {
-                Label(viewModel.place.formattedCategory, systemImage: "tag")
+            if !place.formattedCategory.isEmpty {
+                Label(place.formattedCategory, systemImage: "tag")
                     .font(Theme.Typography.subheadline)
                     .foregroundColor(Theme.Colors.primary)
             }
 
-            if let coord = viewModel.coordinate {
+            if let coord = coordinate {
                 Label("\(coord.lat, specifier: "%.4f"), \(coord.lon, specifier: "%.4f")",
                       systemImage: "location")
+                    .font(Theme.Typography.caption)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+
+            // Show "Added" date for saved places
+            if let savedDate = place.savedDate {
+                Label("Added \(savedDate.formatted(date: .abbreviated, time: .omitted))",
+                      systemImage: "calendar")
                     .font(Theme.Typography.caption)
                     .foregroundColor(Theme.Colors.textSecondary)
             }
@@ -119,7 +154,7 @@ struct PlaceDetailView: View {
 
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 // Phone
-                if let phone = viewModel.place.extratags?.phone {
+                if let phone = place.extratags?.phone {
                     if let phoneURL = URL(string: "tel:\(phone.replacingOccurrences(of: " ", with: ""))") {
                         Link(destination: phoneURL) {
                             Label(phone, systemImage: "phone.fill")
@@ -134,7 +169,7 @@ struct PlaceDetailView: View {
                 }
 
                 // Website
-                if let website = viewModel.place.extratags?.website,
+                if let website = place.extratags?.website,
                    let url = URL(string: website) {
                     Link(destination: url) {
                         Label("Website", systemImage: "globe")
@@ -144,21 +179,21 @@ struct PlaceDetailView: View {
                 }
 
                 // Opening Hours
-                if let hours = viewModel.place.extratags?.openingHours {
+                if let hours = place.extratags?.openingHours {
                     Label(hours, systemImage: "clock")
                         .font(Theme.Typography.subheadline)
                         .foregroundColor(Theme.Colors.textSecondary)
                 }
 
                 // Cuisine
-                if let cuisine = viewModel.place.extratags?.formattedCuisine {
+                if let cuisine = place.extratags?.formattedCuisine {
                     Label(cuisine, systemImage: "fork.knife")
                         .font(Theme.Typography.subheadline)
                         .foregroundColor(Theme.Colors.textSecondary)
                 }
 
                 // Dietary Options
-                if let extratags = viewModel.place.extratags, !extratags.dietaryOptions.isEmpty {
+                if let extratags = place.extratags, !extratags.dietaryOptions.isEmpty {
                     HStack(spacing: Theme.Spacing.sm) {
                         ForEach(extratags.dietaryOptions, id: \.self) { option in
                             Text(option)
@@ -173,16 +208,15 @@ struct PlaceDetailView: View {
                 }
 
                 // Wheelchair Accessibility
-                if let wheelchairStatus = viewModel.place.extratags?.wheelchairStatus {
+                if let wheelchairStatus = place.extratags?.wheelchairStatus {
                     Label(wheelchairStatus, systemImage: "figure.roll")
                         .font(Theme.Typography.caption)
                         .foregroundColor(Theme.Colors.textSecondary)
                 }
 
                 // Wikipedia
-                if let wikipedia = viewModel.place.extratags?.wikipedia {
-                    let wikiURL = wikipediaURL(from: wikipedia)
-                    if let url = wikiURL {
+                if let wikipedia = place.extratags?.wikipedia {
+                    if let url = wikipediaURL(from: wikipedia) {
                         Link(destination: url) {
                             Label("Wikipedia", systemImage: "book.fill")
                                 .font(Theme.Typography.subheadline)
@@ -196,7 +230,6 @@ struct PlaceDetailView: View {
         .cardStyle()
     }
 
-    /// Converts Wikipedia tag (e.g., "en:Eiffel Tower") to URL
     private func wikipediaURL(from tag: String) -> URL? {
         let parts = tag.split(separator: ":", maxSplits: 1)
         guard parts.count == 2 else { return nil }
@@ -205,6 +238,7 @@ struct PlaceDetailView: View {
         return URL(string: "https://\(lang).wikipedia.org/wiki/\(article)")
     }
 
+    @ViewBuilder
     private var addToTripButton: some View {
         Button {
             showAddToTrip = true
@@ -213,19 +247,22 @@ struct PlaceDetailView: View {
                 .frame(maxWidth: .infinity)
                 .primaryButtonStyle()
         }
-        .disabled(trips.isEmpty)
-    }
-
-    private var placeName: String {
-        viewModel.place.displayName.components(separatedBy: ",").first
-            ?? viewModel.place.displayName
     }
 
     private func addPlaceToTrip(_ trip: Trip) {
+        // Cast the generic place to NominatimPlace for saving
+        guard let nominatimPlace = place as? NominatimPlace else { return }
         let orderIndex = trip.places.count
-        let savedPlace = SavedPlace(from: viewModel.place, orderIndex: orderIndex)
+        let savedPlace = SavedPlace(from: nominatimPlace, orderIndex: orderIndex)
         savedPlace.trip = trip
         trip.places.append(savedPlace)
         try? modelContext.save()
+    }
+
+    private func createTrip(name: String, destination: String, startDate: Date?, endDate: Date?) -> Trip {
+        let trip = Trip(name: name, destination: destination, startDate: startDate, endDate: endDate)
+        modelContext.insert(trip)
+        try? modelContext.save()
+        return trip
     }
 }

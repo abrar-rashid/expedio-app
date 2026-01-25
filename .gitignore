@@ -59,4 +59,3 @@ fastlane/test_output
 .env
 .env.local
 **/Secrets.swift
-!**/Secrets.example.swift

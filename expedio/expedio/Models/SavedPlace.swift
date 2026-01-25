@@ -19,7 +19,20 @@ final class SavedPlace {
     var lon: String
     var orderIndex: Int
     var addedAt: Date
+    /// JSON-encoded extratags for rich place data (phone, website, hours, etc.)
+    var extratagsJSON: Data?
     @Relationship(inverse: \Trip.places) var trip: Trip?
+
+    /// Decoded extratags (computed property)
+    var extratags: NominatimExtratags? {
+        get {
+            guard let data = extratagsJSON else { return nil }
+            return try? JSONDecoder().decode(NominatimExtratags.self, from: data)
+        }
+        set {
+            extratagsJSON = try? JSONEncoder().encode(newValue)
+        }
+    }
 
     init(
         id: UUID = UUID(),
@@ -31,6 +44,7 @@ final class SavedPlace {
         lon: String,
         orderIndex: Int = 0,
         addedAt: Date = Date(),
+        extratagsJSON: Data? = nil,
         trip: Trip? = nil
     ) {
         self.id = id
@@ -42,10 +56,12 @@ final class SavedPlace {
         self.lon = lon
         self.orderIndex = orderIndex
         self.addedAt = addedAt
+        self.extratagsJSON = extratagsJSON
         self.trip = trip
     }
 
     convenience init(from place: NominatimPlace, orderIndex: Int = 0) {
+        let extratagsData = try? JSONEncoder().encode(place.extratags)
         self.init(
             placeId: String(place.placeId),
             name: place.displayName.components(separatedBy: ",").first ?? place.displayName,
@@ -53,7 +69,8 @@ final class SavedPlace {
             category: place.formattedCategory,
             lat: place.lat,
             lon: place.lon,
-            orderIndex: orderIndex
+            orderIndex: orderIndex,
+            extratagsJSON: extratagsData
         )
     }
 }

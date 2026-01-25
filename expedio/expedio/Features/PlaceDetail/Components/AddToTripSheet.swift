@@ -11,31 +11,52 @@ struct AddToTripSheet: View {
     @Environment(\.dismiss) private var dismiss
     let trips: [Trip]
     let onSelect: (Trip) -> Void
+    let onCreateNewTrip: () -> Void
 
     var body: some View {
         NavigationStack {
-            List(trips, id: \.id) { trip in
+            VStack(spacing: Theme.Spacing.md) {
+                // Create New Trip button at the top
                 Button {
-                    onSelect(trip)
+                    onCreateNewTrip()
                 } label: {
-                    TripRow(trip: trip)
+                    Label("Create New Trip", systemImage: "plus.circle.fill")
+                        .font(Theme.Typography.headline)
+                        .foregroundColor(Theme.Colors.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, Theme.Spacing.md)
+                        .background(Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.CornerRadius.md)
+                                .stroke(Theme.Colors.primary, lineWidth: 1.5)
+                        )
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.top, Theme.Spacing.sm)
+
+                // Existing trips
+                if !trips.isEmpty {
+                    List {
+                        Section("Your Trips") {
+                            ForEach(trips, id: \.id) { trip in
+                                Button {
+                                    onSelect(trip)
+                                } label: {
+                                    TripRow(trip: trip)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                } else {
+                    Spacer()
                 }
             }
-            .listStyle(.plain)
             .navigationTitle("Add to Trip")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-            }
-            .overlay {
-                if trips.isEmpty {
-                    ContentUnavailableView(
-                        "No Trips",
-                        systemImage: "suitcase",
-                        description: Text("Create a trip first to add places")
-                    )
                 }
             }
         }

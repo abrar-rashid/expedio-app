@@ -53,7 +53,7 @@ struct TripDetailView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.Colors.background)
         .navigationDestination(for: SavedPlace.self) { place in
-            SavedPlaceDetailView(place: place)
+            PlaceDetailView(place: place)
         }
     }
 
