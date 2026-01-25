@@ -34,6 +34,9 @@ struct SearchView: View {
                 text: $viewModel.searchText,
                 prompt: "Search cities, landmarks..."
             )
+            .navigationDestination(for: NominatimPlace.self) { place in
+                PlaceDetailView(place: place)
+            }
         }
     }
 
@@ -54,9 +57,6 @@ struct SearchView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.Colors.background)
-        .navigationDestination(for: NominatimPlace.self) { place in
-            PlaceDetailView(place: place)
-        }
     }
 
     private var promptView: some View {
