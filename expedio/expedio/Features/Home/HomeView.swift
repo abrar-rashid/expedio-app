@@ -47,37 +47,9 @@ struct HomeView: View {
             .navigationTitle("Explore")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: Destination.self) { destination in
-                // Placeholder for CategoryBrowseView (Phase 10)
-                destinationDetailPlaceholder(destination)
+                CategoryBrowseView(destination: destination)
             }
         }
-    }
-
-    // Temporary placeholder until Phase 10 (Category Browsing) is implemented
-    private func destinationDetailPlaceholder(_ destination: Destination) -> some View {
-        VStack(spacing: Theme.Spacing.md) {
-            Image(systemName: "map.fill")
-                .font(.system(size: 60))
-                .foregroundColor(Theme.Colors.primary)
-
-            Text("Coming Soon")
-                .font(Theme.Typography.title)
-                .foregroundColor(Theme.Colors.textPrimary)
-
-            Text("Category browsing for \(destination.name)")
-                .font(Theme.Typography.body)
-                .foregroundColor(Theme.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-
-            Text("Phase 10 will add:\n• Restaurants\n• Cafes\n• Museums\n• Attractions")
-                .font(Theme.Typography.subheadline)
-                .foregroundColor(Theme.Colors.textSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.top, Theme.Spacing.sm)
-        }
-        .padding(Theme.Spacing.lg)
-        .navigationTitle(destination.name)
-        .navigationBarTitleDisplayMode(.large)
     }
 }
 
