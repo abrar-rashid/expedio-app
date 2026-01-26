@@ -30,6 +30,11 @@ struct PlaceDetailView<P: PlaceDisplayable>: View {
         self.place = place
     }
 
+    /// Initialize with an OverpassElement (from category browse)
+    init(place: OverpassElement) where P == OverpassElement {
+        self.place = place
+    }
+
     private var coordinate: (lat: Double, lon: Double)? {
         guard let lat = Double(place.lat),
               let lon = Double(place.lon) else { return nil }
@@ -250,10 +255,18 @@ struct PlaceDetailView<P: PlaceDisplayable>: View {
     }
 
     private func addPlaceToTrip(_ trip: Trip) {
-        // Cast the generic place to NominatimPlace for saving
-        guard let nominatimPlace = place as? NominatimPlace else { return }
         let orderIndex = trip.places.count
-        let savedPlace = SavedPlace(from: nominatimPlace, orderIndex: orderIndex)
+        let savedPlace: SavedPlace
+
+        // Handle different place types
+        if let nominatimPlace = place as? NominatimPlace {
+            savedPlace = SavedPlace(from: nominatimPlace, orderIndex: orderIndex)
+        } else if let overpassElement = place as? OverpassElement {
+            savedPlace = SavedPlace(from: overpassElement, orderIndex: orderIndex)
+        } else {
+            return
+        }
+
         savedPlace.trip = trip
         trip.places.append(savedPlace)
         try? modelContext.save()

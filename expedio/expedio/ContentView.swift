@@ -13,17 +13,23 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem {
+                    Label("Explore", systemImage: "globe")
+                }
+                .tag(0)
+
             SearchView()
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
                 }
-                .tag(0)
+                .tag(1)
 
             TripsListView()
                 .tabItem {
                     Label("Trips", systemImage: "suitcase.fill")
                 }
-                .tag(1)
+                .tag(2)
         }
         .tint(Theme.Colors.primary)
     }

@@ -73,4 +73,18 @@ final class SavedPlace {
             extratagsJSON: extratagsData
         )
     }
+
+    convenience init(from element: OverpassElement, orderIndex: Int = 0) {
+        let extratagsData = try? JSONEncoder().encode(element.extratags)
+        self.init(
+            placeId: "\(element.type)_\(element.id)",
+            name: element.name,
+            displayName: element.displayName,
+            category: element.formattedCategory,
+            lat: element.lat,
+            lon: element.lon,
+            orderIndex: orderIndex,
+            extratagsJSON: extratagsData
+        )
+    }
 }
